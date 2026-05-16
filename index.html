@@ -281,53 +281,62 @@
 
   .btn-print:hover { background: rgba(122,74,32,0.08); }
 
-  /* ===== PREVIEW MODAL ===== */
-  #preview-modal {
+  /* ===== PREVIEW（ページ下部インライン） ===== */
+  #preview-section {
     display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.82);
-    z-index: 100;
-    overflow: auto;
-    padding: 24px 20px 40px;
-    flex-direction: column;
+    max-width: 900px;
+    margin: 0 auto 60px;
+    padding: 0 24px;
+  }
+
+  #preview-section.open { display: block; }
+
+  .preview-toolbar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
     align-items: center;
   }
 
-  #preview-modal.open { display: flex; }
-
-  .modal-toolbar {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 20px;
-    flex-shrink: 0;
+  .preview-toolbar h3 {
+    font-size: 0.75rem;
+    letter-spacing: 0.4em;
+    color: var(--ui-accent);
+    font-weight: 400;
+    flex: 1;
   }
 
-  .modal-toolbar button {
+  .preview-toolbar button {
     font-family: 'Noto Serif JP', serif;
     font-size: 0.8rem;
     letter-spacing: 0.3em;
-    padding: 8px 24px;
+    padding: 8px 20px;
     cursor: pointer;
     border-radius: 2px;
   }
 
-  .modal-close {
-    background: none;
-    border: 1px solid #888;
-    color: #ccc;
-  }
-
-  .modal-print {
+  .preview-print-btn {
     background: var(--ui-accent);
     border: none;
     color: #fff;
   }
 
-  /* プレビュー表示ラッパー：scaleで縮小表示 */
+  .preview-print-btn:hover { background: #9a6030; }
+
+  #preview-scale-outer {
+    overflow-x: auto;
+    background: #e8e0d4;
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    padding: 24px;
+    display: flex;
+    justify-content: center;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.08);
+  }
+
   #preview-scale-wrap {
-    transform-origin: top center;
-    /* JSでscale指定 */
+    transform-origin: top left;
+    flex-shrink: 0;
   }
 
   /* ===== A4 PRINT SHEET ===== */
@@ -564,15 +573,16 @@
   <button class="btn-print" id="btn-print-direct">印刷する</button>
 </div>
 
-<!-- PREVIEW MODAL -->
-<div id="preview-modal">
-  <div class="modal-toolbar">
-    <button class="modal-close" id="modal-close">閉じる</button>
-    <button class="modal-print" id="modal-print-btn">印刷・PDF保存</button>
+<!-- ページ下部プレビューエリア -->
+<div id="preview-section">
+  <div class="preview-toolbar">
+    <h3>プ レ ビ ュ ー</h3>
+    <button class="preview-print-btn" id="preview-print-btn">印刷・PDF保存</button>
   </div>
-  <!-- print-areaをscaleラッパーで縮小表示 -->
-  <div id="preview-scale-wrap">
-    <div id="print-area"></div>
+  <div id="preview-scale-outer">
+    <div id="preview-scale-wrap">
+      <div id="print-area"></div>
+    </div>
   </div>
 </div>
 
@@ -666,6 +676,7 @@ document.getElementById('items-list').addEventListener('drop', e => {
   items.splice(destIndex, 0, moved);
   dragSrcIndex = null;
   renderItems();
+  schedulePreviewUpdate();
 });
 
 document.getElementById('items-list').addEventListener('change', e => {
@@ -677,6 +688,7 @@ document.getElementById('items-list').addEventListener('change', e => {
       items[i].type = e.target.value;
     }
     renderItems();
+    schedulePreviewUpdate();
   }
 });
 
@@ -684,12 +696,14 @@ document.getElementById('items-list').addEventListener('input', e => {
   const i = parseInt(e.target.dataset.i);
   if (e.target.dataset.field === 'name') items[i].name = e.target.value;
   if (e.target.dataset.field === 'typeCustom') items[i].type = e.target.value;
+  schedulePreviewUpdate();
 });
 
 document.getElementById('items-list').addEventListener('click', e => {
   if (e.target.dataset.i !== undefined && e.target.classList.contains('btn-remove')) {
     items.splice(parseInt(e.target.dataset.i), 1);
     renderItems();
+    schedulePreviewUpdate();
   }
 });
 
@@ -697,7 +711,11 @@ document.getElementById('btn-add-item').addEventListener('click', () => {
   if (items.length >= 12) return;
   items.push({ type: CATEGORY_OPTIONS[0], name: '' });
   renderItems();
+  schedulePreviewUpdate();
 });
+
+// 施設名のリアルタイム更新
+document.getElementById('facility-name').addEventListener('input', schedulePreviewUpdate);
 
 // ===== SEASON =====
 document.querySelectorAll('.season-btn').forEach(btn => {
@@ -705,6 +723,7 @@ document.querySelectorAll('.season-btn').forEach(btn => {
     selectedSeason = btn.dataset.season;
     document.querySelectorAll('.season-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    schedulePreviewUpdate();
   });
 });
 
@@ -761,54 +780,61 @@ function generatePrintArea() {
 
 // ===== PREVIEW & PRINT =====
 
+// デバウンス：200ms入力が止まったらプレビュー更新
+let previewDebounceTimer = null;
+function schedulePreviewUpdate() {
+  if (!document.getElementById('preview-section').classList.contains('open')) return;
+  clearTimeout(previewDebounceTimer);
+  previewDebounceTimer = setTimeout(() => {
+    generatePrintArea();
+  }, 200);
+}
+
 function openPreview() {
   generatePrintArea();
-  // スケール計算：ビューポート幅に合わせて縮小
-  const vw = window.innerWidth;
-  const mmToPx = 3.7795; // 1mm ≈ 3.78px at 96dpi
+
+  const section = document.getElementById('preview-section');
+  section.classList.add('open');
+
+  // スケール計算：外側コンテナ幅に合わせて縮小
+  const outer = document.getElementById('preview-scale-outer');
+  const outerW = outer.clientWidth - 48;
+  const mmToPx = 3.7795;
   const paperW = 210 * mmToPx;
-  const scale = Math.min(0.85, (vw - 48) / paperW);
   const paperH = 297 * mmToPx;
+  const scale = Math.min(1, outerW / paperW);
 
   const wrap = document.getElementById('preview-scale-wrap');
   wrap.style.transform = `scale(${scale})`;
-  wrap.style.transformOrigin = 'top center';
-  wrap.style.width = '210mm';
-  wrap.style.height = '297mm';
-  // コンテナの実際の高さをscale後のサイズに合わせる
-  wrap.style.marginBottom = `${paperH * (scale - 1)}px`;
+  wrap.style.transformOrigin = 'top left';
+  wrap.style.width = paperW + 'px';
+  wrap.style.height = paperH + 'px';
 
-  document.getElementById('preview-modal').classList.add('open');
+  outer.style.minHeight = (paperH * scale + 48) + 'px';
+
+  setTimeout(() => {
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
 }
 
 function doPrint() {
-  // print-areaをbody直下のprint-wrapperに一時移動して印刷
   const printArea = document.getElementById('print-area');
   const printWrapper = document.getElementById('print-wrapper');
-  const modal = document.getElementById('preview-modal');
   const scaleWrap = document.getElementById('preview-scale-wrap');
 
   printWrapper.style.display = 'flex';
   printWrapper.appendChild(printArea);
-  modal.style.display = 'none';
 
   window.print();
 
-  // 印刷ダイアログ後に元に戻す
   setTimeout(() => {
     scaleWrap.appendChild(printArea);
     printWrapper.style.display = 'none';
-    if (modal.classList.contains('open')) modal.style.display = 'flex';
   }, 500);
 }
 
 document.getElementById('btn-preview').addEventListener('click', openPreview);
-
-document.getElementById('modal-close').addEventListener('click', () => {
-  document.getElementById('preview-modal').classList.remove('open');
-});
-
-document.getElementById('modal-print-btn').addEventListener('click', doPrint);
+document.getElementById('preview-print-btn').addEventListener('click', doPrint);
 
 document.getElementById('btn-print-direct').addEventListener('click', () => {
   generatePrintArea();
