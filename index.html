@@ -731,14 +731,14 @@ document.querySelectorAll('.season-btn').forEach(btn => {
 function generatePrintArea() {
   const facilityName = document.getElementById('facility-name').value || '';
 
-  // ===== ③ 種類テキスト正規化（文字数で頭位置を揃える） =====
-  // 3文字以上→そのまま / 2文字→「前　菜」/ 1文字→「　汁　」
+  // ===== 種類テキスト正規化（文字数で頭位置を揃える） =====
+  // 空→全角スペース3文字 / 1文字→「　X　」/ 2文字→「X　X」/ 3文字→そのまま
   function normalizeType(str) {
     const s = str.trim();
-    if (s.length === 0) return s;
-    if (s.length === 1) return '\u3000' + s + '\u3000'; // 全角スペースで前後を埋める
-    if (s.length === 2) return s[0] + '\u3000' + s[1];  // 2文字間に全角スペース
-    return s; // 3文字以上はそのまま
+    if (s.length === 0) return '\u3000\u3000\u3000'; // 空欄も3文字分確保
+    if (s.length === 1) return '\u3000' + s + '\u3000';
+    if (s.length === 2) return s[0] + '\u3000' + s[1];
+    return s;
   }
 
   // 3つ同じセルを生成
