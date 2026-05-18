@@ -281,7 +281,129 @@
 
   .btn-print:hover { background: rgba(122,74,32,0.08); }
 
-  /* ===== PREVIEW（ページ下部インライン） ===== */
+  /* ===== 保存・履歴 ===== */
+  .save-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .save-row input[type="text"] {
+    flex: 1;
+    font-size: 0.85rem;
+  }
+
+  .btn-save {
+    background: var(--ui-accent);
+    border: none;
+    color: #fff;
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    padding: 8px 18px;
+    border-radius: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .btn-save:hover { background: #9a6030; }
+
+  .btn-overwrite {
+    background: none;
+    border: 1px solid var(--ui-accent);
+    color: var(--ui-accent);
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    padding: 8px 18px;
+    border-radius: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .btn-overwrite:hover { background: rgba(122,74,32,0.08); }
+
+  .saved-list {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .saved-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 8px;
+    align-items: center;
+    background: var(--ui-input-bg);
+    border: 1px solid var(--ui-border);
+    border-radius: 2px;
+    padding: 8px 12px;
+  }
+
+  .saved-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .saved-item-name {
+    font-size: 0.85rem;
+    color: var(--ui-text);
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .saved-item-meta {
+    font-size: 0.68rem;
+    color: var(--ui-text-sub);
+    letter-spacing: 0.05em;
+  }
+
+  .btn-load, .btn-dupe, .btn-del {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    padding: 5px 10px;
+    border-radius: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  .btn-load {
+    background: none;
+    border: 1px solid var(--ui-accent);
+    color: var(--ui-accent);
+  }
+  .btn-load:hover { background: rgba(122,74,32,0.08); }
+
+  .btn-dupe {
+    background: none;
+    border: 1px solid var(--ui-border);
+    color: var(--ui-text-sub);
+  }
+  .btn-dupe:hover { border-color: var(--ui-accent); color: var(--ui-accent); }
+
+  .btn-del {
+    background: none;
+    border: 1px solid #ddd;
+    color: #bbb;
+  }
+  .btn-del:hover { border-color: #c0392b; color: #c0392b; }
+
+  .saved-empty {
+    font-size: 0.78rem;
+    color: var(--ui-text-sub);
+    letter-spacing: 0.15em;
+    text-align: center;
+    padding: 12px 0;
+  }
   #preview-section {
     display: none;
     max-width: 900px;
@@ -394,8 +516,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 6mm;
     min-width: 10mm;
     max-width: 12mm;
+    margin-right: 5mm;
   }
 
   .title-text {
@@ -404,6 +528,28 @@
     color: var(--ink);
     font-weight: 400;
     line-height: 1;
+  }
+
+  /* 縦書きコンテキスト内の区切り線：writing-modeをリセットして横線として表示 */
+  .title-divider-h {
+    writing-mode: horizontal-tb;
+    width: 10mm;
+    height: 1px;
+    background: var(--line);
+    margin: 7mm auto; /* 文字との被りをなくす */
+    flex-shrink: 0;
+    align-self: center;
+  }
+
+  .title-guest {
+    font-size: 9pt;
+    letter-spacing: 0.35em;
+    color: #555;
+    font-weight: 400;
+    line-height: 1;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    margin-left: 4mm; /* 縦区切り線との間隔（縦書きでleftが縦線側） */
   }
 
   /* 区切り線 */
@@ -541,12 +687,22 @@
     <p>旅館・ホテル向け　縦書き三連お品書き生成ツール</p>
   </div>
 
+  <!-- 保存・履歴 -->
+  <div class="ui-section">
+    <h2>保存履歴</h2>
+    <div class="saved-list" id="saved-list"></div>
+  </div>
+
   <!-- 施設名 -->
   <div class="ui-section">
     <h2>施設情報</h2>
     <div class="form-row">
       <label>施設名</label>
       <input type="text" id="facility-name" placeholder="例：プレスリー旅館" maxlength="12" value="">
+    </div>
+    <div class="form-row">
+      <label>予約名</label>
+      <input type="text" id="guest-name" placeholder="最大15文字で任意記入（例：山田様）" maxlength="15" value="">
     </div>
   </div>
 
@@ -571,6 +727,11 @@
 
   <button class="btn-preview" id="btn-preview">プレビューを生成する</button>
   <button class="btn-print" id="btn-print-direct">印刷する</button>
+  <div class="save-row" style="margin-top:8px;">
+    <input type="text" id="save-name" placeholder="保存名を入力（例：夕食 山田様）" maxlength="30">
+    <button class="btn-save" id="btn-save">名前をつけて保存</button>
+    <button class="btn-overwrite" id="btn-overwrite" style="display:none;">上書き保存</button>
+  </div>
 </div>
 
 <!-- ページ下部プレビューエリア -->
@@ -730,6 +891,7 @@ document.querySelectorAll('.season-btn').forEach(btn => {
 // ===== GENERATE PRINT HTML =====
 function generatePrintArea() {
   const facilityName = document.getElementById('facility-name').value || '';
+  const guestName = document.getElementById('guest-name').value.trim();
 
   // ===== 種類テキスト正規化（文字数で頭位置を揃える） =====
   // 空→全角スペース3文字 / 1文字→「　X　」/ 2文字→「X　X」/ 3文字→そのまま
@@ -756,6 +918,15 @@ function generatePrintArea() {
     const stampInner = stampSrc ? `<div class="season-stamp"><img src="${stampSrc}" alt="季節印"></div>` : '';
     const cutLine = !isLast ? `<div class="cut-line"></div>` : '';
 
+    const titleColHTML = guestName
+      ? `<div class="title-col">
+           <span class="title-text">お品書き</span>
+           <span class="title-guest">${guestName}</span>
+         </div>`
+      : `<div class="title-col">
+           <span class="title-text">お品書き</span>
+         </div>`;
+
     cellsHTML += `
       <div class="obansho-cell">
         ${cutLine}
@@ -764,9 +935,7 @@ function generatePrintArea() {
           ${stampInner}
         </div>
         <div class="obansho-inner">
-          <div class="title-col">
-            <span class="title-text">お品書き</span>
-          </div>
+          ${titleColHTML}
           <div class="divider-v"></div>
           <div class="items-col">${itemsHTML}</div>
           <div class="divider-v"></div>
@@ -841,8 +1010,137 @@ document.getElementById('btn-print-direct').addEventListener('click', () => {
   doPrint();
 });
 
+document.getElementById('guest-name').addEventListener('input', schedulePreviewUpdate);
+document.getElementById('facility-name').addEventListener('input', schedulePreviewUpdate);
+
+// ===== 保存・履歴 =====
+const STORAGE_KEY = 'obansho_saved_v1';
+let loadedId = null; // 現在読み込み中のエントリID
+
+function getSaved() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+
+function setSaved(list) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+function getCurrentState() {
+  return {
+    facilityName: document.getElementById('facility-name').value,
+    guestName:    document.getElementById('guest-name').value,
+    season:       selectedSeason,
+    items:        JSON.parse(JSON.stringify(items))
+  };
+}
+
+function setLoadedId(id, name) {
+  loadedId = id;
+  document.getElementById('save-name').value = name || '';
+  document.getElementById('btn-overwrite').style.display = id ? 'block' : 'none';
+}
+
+function applyState(state, id, name) {
+  document.getElementById('facility-name').value = state.facilityName || '';
+  document.getElementById('guest-name').value    = state.guestName || '';
+  selectedSeason = state.season || 'none';
+  document.querySelectorAll('.season-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.season === selectedSeason);
+  });
+  items = state.items || [];
+  renderItems();
+  schedulePreviewUpdate();
+  setLoadedId(id || null, name || '');
+}
+
+function renderSavedList() {
+  const list = getSaved();
+  const el = document.getElementById('saved-list');
+  if (list.length === 0) {
+    el.innerHTML = '<div class="saved-empty">保存されたお品書きはありません</div>';
+    return;
+  }
+  el.innerHTML = list.map((entry, i) => {
+    const d = new Date(entry.savedAt);
+    const dateStr = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const meta = [entry.state.facilityName, entry.state.guestName].filter(Boolean).join('　');
+    const isLoaded = entry.id === loadedId;
+    return `
+      <div class="saved-item${isLoaded ? ' is-loaded' : ''}">
+        <div class="saved-item-info">
+          <span class="saved-item-name">${entry.name}${isLoaded ? '　<span style="font-size:0.65rem;color:var(--ui-accent);">編集中</span>' : ''}</span>
+          <span class="saved-item-meta">${dateStr}${meta ? '　' + meta : ''}</span>
+        </div>
+        <button class="btn-load" data-i="${i}">読み込み</button>
+        <button class="btn-dupe" data-i="${i}">複製</button>
+        <button class="btn-del"  data-i="${i}">削除</button>
+      </div>`;
+  }).join('');
+}
+
+document.getElementById('btn-save').addEventListener('click', () => {
+  const name = document.getElementById('save-name').value.trim();
+  if (!name) { alert('保存名を入力してください'); return; }
+  const list = getSaved();
+  const newId = Date.now();
+  list.unshift({ id: newId, name, savedAt: newId, state: getCurrentState() });
+  setSaved(list);
+  setLoadedId(newId, name);
+  renderSavedList();
+});
+
+document.getElementById('btn-overwrite').addEventListener('click', () => {
+  if (!loadedId) return;
+  const list = getSaved();
+  const idx = list.findIndex(e => e.id === loadedId);
+  if (idx === -1) { alert('元のデータが見つかりません。名前をつけて保存してください。'); return; }
+  const name = document.getElementById('save-name').value.trim() || list[idx].name;
+  list[idx].name    = name;
+  list[idx].savedAt = Date.now();
+  list[idx].state   = getCurrentState();
+  setSaved(list);
+  setLoadedId(loadedId, name);
+  renderSavedList();
+  // 完了フィードバック
+  const btn = document.getElementById('btn-overwrite');
+  const orig = btn.textContent;
+  btn.textContent = '保存しました';
+  setTimeout(() => { btn.textContent = orig; }, 1500);
+});
+
+document.getElementById('saved-list').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const i = parseInt(btn.dataset.i);
+  const list = getSaved();
+
+  if (btn.classList.contains('btn-load')) {
+    if (confirm(`「${list[i].name}」を読み込みますか？\n現在の内容は上書きされます。`)) {
+      applyState(list[i].state, list[i].id, list[i].name);
+      renderSavedList();
+    }
+  } else if (btn.classList.contains('btn-dupe')) {
+    const copy = JSON.parse(JSON.stringify(list[i]));
+    copy.id = Date.now();
+    copy.name = copy.name + '　コピー';
+    copy.savedAt = Date.now();
+    list.splice(i + 1, 0, copy);
+    setSaved(list);
+    renderSavedList();
+  } else if (btn.classList.contains('btn-del')) {
+    if (confirm(`「${list[i].name}」を削除しますか？`)) {
+      if (list[i].id === loadedId) setLoadedId(null, '');
+      list.splice(i, 1);
+      setSaved(list);
+      renderSavedList();
+    }
+  }
+});
+
 // ===== INIT =====
 renderItems();
+renderSavedList();
 </script>
 </body>
 </html>
