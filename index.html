@@ -281,6 +281,28 @@
 
   .btn-print:hover { background: rgba(122,74,32,0.08); }
 
+  /* ===== 予約名リスト ===== */
+  .guest-row {
+    display: grid;
+    grid-template-columns: 20px 1fr 90px 32px;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .guest-num {
+    font-size: 0.7rem;
+    color: var(--ui-text-sub);
+    text-align: right;
+    opacity: 0.6;
+  }
+
+  .guest-copies-select {
+    font-size: 0.8rem;
+    padding: 6px 8px;
+    min-width: 0;
+  }
+
   /* ===== 保存・履歴 ===== */
   .save-row {
     display: flex;
@@ -447,7 +469,7 @@
 
   #preview-scale-outer {
     overflow-x: auto;
-    background: #e8e0d4;
+    background: #fff;
     border: 1px solid var(--ui-border);
     border-radius: 4px;
     padding: 24px;
@@ -465,7 +487,7 @@
   #print-area {
     width: 210mm;
     height: 297mm; /* A4縦 */
-    background: var(--paper);
+    background: transparent;
     display: flex;
     flex-direction: column;
     position: relative;
@@ -693,16 +715,23 @@
     <div class="saved-list" id="saved-list"></div>
   </div>
 
-  <!-- 施設名 -->
+  <!-- 施設情報（共通） -->
   <div class="ui-section">
-    <h2>施設情報</h2>
+    <h2>施設情報（共通）</h2>
     <div class="form-row">
       <label>施設名</label>
       <input type="text" id="facility-name" placeholder="最大15文字で記入（例：プレスリー旅館）" maxlength="15" value="">
     </div>
-    <div class="form-row">
-      <label>予約名</label>
-      <input type="text" id="guest-name" placeholder="最大15文字で任意記入（例：山田様）" maxlength="15" value="">
+  </div>
+
+  <!-- 予約名・枚数 -->
+  <div class="ui-section">
+    <h2>予約名・枚数（最大3種・合計3枚）</h2>
+    <div id="guests-list"></div>
+    <button class="btn-add" id="btn-add-guest" style="margin-top:8px;">＋ 予約名を追加</button>
+    <div class="copies-row" style="margin-top:12px;margin-bottom:0;">
+      <label>合計枚数</label>
+      <span class="copies-total" id="copies-total">1 / 3枚</span>
     </div>
   </div>
 
@@ -720,13 +749,16 @@
 
   <!-- 品目リスト -->
   <div class="ui-section">
-    <h2>お品書き内容（最大12項目）</h2>
+    <h2>お品書き内容（最大12項目・共通）</h2>
     <div class="items-grid" id="items-list"></div>
     <button class="btn-add" id="btn-add-item">＋ 品目を追加</button>
   </div>
 
   <button class="btn-preview" id="btn-preview">プレビューを生成する</button>
   <button class="btn-print" id="btn-print-direct">印刷する</button>
+  <p style="margin-top:8px;font-size:0.75rem;color:var(--accent);letter-spacing:0.1em;line-height:1.8;">
+    ※ 必ず【背景のグラフィック】にチェックを入れて印刷してください
+  </p>
   <div class="save-row" style="margin-top:8px;">
     <input type="text" id="save-name" placeholder="保存名を入力（例：夕食 山田様）" maxlength="30">
     <button class="btn-save" id="btn-save">名前をつけて保存</button>
@@ -757,13 +789,91 @@ const CATEGORY_OPTIONS = [
   "揚物","蒸し物","酢の物","食事","止椀","香の物","水菓子"
 ];
 
+// 共通データ
+let facilityName = '';
+let selectedSeason = 'none';
 let items = [
-  { type: "食前酒", name: "" },
-  { type: "前菜", name: "" },
-  { type: "お造り", name: "" },
+  { type:'食前酒', name:'' },
+  { type:'前菜',   name:'' },
+  { type:'お造り', name:'' },
 ];
 
-let selectedSeason = "none";
+// 予約名リスト（最大3つ・各自に枚数）
+let guests = [{ name:'', copies:1 }];
+
+// ===== GUESTS UI =====
+function totalCopies() {
+  return guests.reduce((s, g) => s + g.copies, 0);
+}
+
+function renderGuests() {
+  const list = document.getElementById('guests-list');
+  list.innerHTML = '';
+  guests.forEach((g, i) => {
+    const row = document.createElement('div');
+    row.className = 'guest-row';
+    // 枚数の最大値は「残り枠 + 自分の枚数」
+    const maxCopies = Math.min(3, (3 - totalCopies()) + g.copies);
+    const options = [1,2,3].map(n =>
+      `<option value="${n}" ${g.copies===n?'selected':''} ${n>maxCopies?'disabled':''}>
+        ${n}枚
+      </option>`
+    ).join('');
+    row.innerHTML = `
+      <span class="guest-num">${i+1}</span>
+      <input type="text" class="guest-name-input" data-i="${i}"
+        value="${g.name}" placeholder="予約名（任意・最大15文字）" maxlength="15">
+      <select class="guest-copies-select" data-i="${i}">${options}</select>
+      <button class="btn-remove guest-remove" data-i="${i}">×</button>
+    `;
+    list.appendChild(row);
+  });
+
+  const total = totalCopies();
+  const totalEl = document.getElementById('copies-total');
+  totalEl.textContent = `${total} / 3枚`;
+  totalEl.className = 'copies-total' + (total > 3 ? ' over' : '');
+
+  // 3種類以上・合計3枚以上なら追加ボタンを隠す
+  const addBtn = document.getElementById('btn-add-guest');
+  addBtn.style.display = (guests.length >= 3 || total >= 3) ? 'none' : 'block';
+}
+
+document.getElementById('guests-list').addEventListener('input', e => {
+  const i = parseInt(e.target.dataset.i);
+  if (e.target.classList.contains('guest-name-input')) {
+    guests[i].name = e.target.value;
+    schedulePreviewUpdate();
+  }
+});
+
+document.getElementById('guests-list').addEventListener('change', e => {
+  const i = parseInt(e.target.dataset.i);
+  if (e.target.classList.contains('guest-copies-select')) {
+    guests[i].copies = parseInt(e.target.value);
+    renderGuests();
+    schedulePreviewUpdate();
+  }
+});
+
+document.getElementById('guests-list').addEventListener('click', e => {
+  const btn = e.target.closest('.guest-remove');
+  if (!btn) return;
+  const i = parseInt(btn.dataset.i);
+  if (guests.length === 1) {
+    guests[0] = { name:'', copies:1 };
+  } else {
+    guests.splice(i, 1);
+  }
+  renderGuests();
+  schedulePreviewUpdate();
+});
+
+document.getElementById('btn-add-guest').addEventListener('click', () => {
+  if (guests.length >= 3 || totalCopies() >= 3) return;
+  guests.push({ name:'', copies:1 });
+  renderGuests();
+});
 
 // ===== SEASON STAMPS (Base64 SVG) =====
 const STAMPS = {
@@ -870,13 +980,16 @@ document.getElementById('items-list').addEventListener('click', e => {
 
 document.getElementById('btn-add-item').addEventListener('click', () => {
   if (items.length >= 12) return;
-  items.push({ type: CATEGORY_OPTIONS[0], name: '' });
+  items.push({ type: '煮物', name: '' });
   renderItems();
   schedulePreviewUpdate();
 });
 
-// 施設名のリアルタイム更新
-document.getElementById('facility-name').addEventListener('input', schedulePreviewUpdate);
+// 施設名リアルタイム更新
+document.getElementById('facility-name').addEventListener('input', e => {
+  facilityName = e.target.value;
+  schedulePreviewUpdate();
+});
 
 // ===== SEASON =====
 document.querySelectorAll('.season-btn').forEach(btn => {
@@ -890,42 +1003,48 @@ document.querySelectorAll('.season-btn').forEach(btn => {
 
 // ===== GENERATE PRINT HTML =====
 function generatePrintArea() {
-  const facilityName = document.getElementById('facility-name').value || '';
-  const guestName = document.getElementById('guest-name').value.trim();
+  facilityName = document.getElementById('facility-name').value || '';
 
-  // ===== 種類テキスト正規化（文字数で頭位置を揃える） =====
-  // 空→全角スペース3文字 / 1文字→「　X　」/ 2文字→「X　X」/ 3文字→そのまま
   function normalizeType(str) {
     const s = str.trim();
-    if (s.length === 0) return '\u3000\u3000\u3000'; // 空欄も3文字分確保
+    if (s.length === 0) return '\u3000\u3000\u3000';
     if (s.length === 1) return '\u3000' + s + '\u3000';
     if (s.length === 2) return s[0] + '\u3000' + s[1];
     return s;
   }
 
-  // 3つ同じセルを生成
+  // guests × copies 分のスロットを展開（最大3枚）
+  const slots = [];
+  for (const g of guests) {
+    for (let c = 0; c < g.copies; c++) {
+      slots.push(g.name);
+      if (slots.length >= 3) break;
+    }
+    if (slots.length >= 3) break;
+  }
+  while (slots.length < 3) slots.push(null); // 空スロット補完
+
+  const stampSrc = STAMPS[selectedSeason] || '';
+  const stampInner = stampSrc ? `<div class="season-stamp"><img src="${stampSrc}" alt="季節印"></div>` : '';
+
+  const itemsHTML = items.filter(it => it.name || it.type).map(it => {
+    const typeDisplay = normalizeType(it.type || '');
+    return `<div class="item-entry"><span class="item-type">${typeDisplay}</span><span class="item-sep">　</span><span class="item-name">${it.name}</span></div>`;
+  }).join('');
+
   let cellsHTML = '';
-  for (let c = 0; c < 3; c++) {
-    const isLast = c === 2;
-
-    // 品目HTML（右から左に並べるので逆順で配置）
-    const itemsHTML = items.filter(it => it.name || it.type).map(it => {
-      const typeDisplay = normalizeType(it.type || '');
-      return `<div class="item-entry"><span class="item-type">${typeDisplay}</span><span class="item-sep">　</span><span class="item-name">${it.name}</span></div>`;
-    }).join('');
-
-    const stampSrc = STAMPS[selectedSeason] || '';
-    const stampInner = stampSrc ? `<div class="season-stamp"><img src="${stampSrc}" alt="季節印"></div>` : '';
+  slots.forEach((guestName, idx) => {
+    const isLast = idx === 2;
     const cutLine = !isLast ? `<div class="cut-line"></div>` : '';
 
+    if (guestName === null) {
+      cellsHTML += `<div class="obansho-cell">${cutLine}</div>`;
+      return;
+    }
+
     const titleColHTML = guestName
-      ? `<div class="title-col">
-           <span class="title-text">お品書き</span>
-           <span class="title-guest">${guestName}</span>
-         </div>`
-      : `<div class="title-col">
-           <span class="title-text">お品書き</span>
-         </div>`;
+      ? `<div class="title-col"><span class="title-text">お品書き</span><span class="title-guest">${guestName}</span></div>`
+      : `<div class="title-col"><span class="title-text">お品書き</span></div>`;
 
     cellsHTML += `
       <div class="obansho-cell">
@@ -940,9 +1059,8 @@ function generatePrintArea() {
           <div class="items-col">${itemsHTML}</div>
           <div class="divider-v"></div>
         </div>
-      </div>
-    `;
-  }
+      </div>`;
+  });
 
   document.getElementById('print-area').innerHTML = cellsHTML;
 }
@@ -1035,6 +1153,15 @@ function getCurrentState() {
   };
 }
 
+function getCurrentState() {
+  return {
+    facilityName,
+    season: selectedSeason,
+    items:  JSON.parse(JSON.stringify(items)),
+    guests: JSON.parse(JSON.stringify(guests))
+  };
+}
+
 function setLoadedId(id, name) {
   loadedId = id;
   document.getElementById('save-name').value = name || '';
@@ -1042,14 +1169,26 @@ function setLoadedId(id, name) {
 }
 
 function applyState(state, id, name) {
-  document.getElementById('facility-name').value = state.facilityName || '';
-  document.getElementById('guest-name').value    = state.guestName || '';
+  facilityName = state.facilityName || '';
+  document.getElementById('facility-name').value = facilityName;
+
   selectedSeason = state.season || 'none';
   document.querySelectorAll('.season-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.season === selectedSeason);
   });
+
   items = state.items || [];
   renderItems();
+
+  // guests：旧フォーマット互換（guestNameのみの場合）
+  if (state.guests) {
+    guests = state.guests;
+  } else if (state.guestName !== undefined) {
+    guests = [{ name: state.guestName || '', copies: 1 }];
+  } else {
+    guests = [{ name:'', copies:1 }];
+  }
+  renderGuests();
   schedulePreviewUpdate();
   setLoadedId(id || null, name || '');
 }
@@ -1140,6 +1279,7 @@ document.getElementById('saved-list').addEventListener('click', e => {
 
 // ===== INIT =====
 renderItems();
+renderGuests();
 renderSavedList();
 </script>
 </body>
