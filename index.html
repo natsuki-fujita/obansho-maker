@@ -281,6 +281,35 @@
 
   .btn-print:hover { background: rgba(122,74,32,0.08); }
 
+  .btn-upload-label {
+    display: inline-block;
+    background: none;
+    border: 1px solid var(--ui-accent);
+    color: var(--ui-accent);
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.2em;
+    padding: 6px 16px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-upload-label:hover { background: rgba(122,74,32,0.08); }
+
+  .btn-clear-stamp {
+    background: none;
+    border: 1px solid var(--ui-border);
+    color: var(--ui-text-sub);
+    font-family: 'Noto Serif JP', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    padding: 6px 12px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-clear-stamp:hover { border-color: #c0392b; color: #c0392b; }
+
   /* ===== 予約名リスト ===== */
   .guest-row {
     display: grid;
@@ -623,6 +652,15 @@
     vertical-align: top;
   }
 
+  /* 記載なし：品名のみ・先頭（上部）に配置 */
+  .item-entry--no-type {
+    justify-content: flex-start;
+  }
+
+  .item-entry--no-type .item-name {
+    display: block;
+  }
+
   /* 施設名＋印影：左端から6mmの位置に縦列配置 */
   .facility-col {
     position: absolute;
@@ -724,6 +762,15 @@
     </div>
   </div>
 
+  <!-- タイトル変更 -->
+  <div class="ui-section">
+    <h2>タイトル</h2>
+    <div class="form-row">
+      <label>タイトル名</label>
+      <input type="text" id="obansho-title" placeholder="変更なしの場合は「お品書き」で表示（最大9文字）" maxlength="9" value="">
+    </div>
+  </div>
+
   <!-- 予約名・枚数 -->
   <div class="ui-section">
     <h2>予約名・枚数（最大3種・合計3枚）</h2>
@@ -744,6 +791,19 @@
       <button class="season-btn" data-season="summer">夏</button>
       <button class="season-btn" data-season="autumn">秋</button>
       <button class="season-btn" data-season="winter">冬</button>
+    </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ui-border);">
+      <div style="font-size:0.75rem;color:var(--ui-text-sub);letter-spacing:0.2em;margin-bottom:10px;">施設の印影</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label class="btn-upload-label" for="custom-stamp-upload">アップロードする</label>
+        <input type="file" id="custom-stamp-upload" accept="image/*" style="display:none;">
+        <button class="btn-clear-stamp" id="btn-clear-stamp" style="display:none;">削除</button>
+        <div id="custom-stamp-preview" style="display:none;">
+          <img id="custom-stamp-img" src="" alt="施設印影プレビュー"
+            style="width:14mm;height:14mm;object-fit:contain;border:1px solid var(--ui-border);border-radius:2px;padding:2px;">
+        </div>
+      </div>
+      <div style="font-size:0.7rem;color:var(--ui-text-sub);letter-spacing:0.05em;margin-top:6px;">PNG・JPG・SVG対応。アップロード時は季節の印影は無効になります。</div>
     </div>
   </div>
 
@@ -785,6 +845,7 @@
 <script>
 // ===== DATA =====
 const CATEGORY_OPTIONS = [
+  "記載なし",
   "食前酒","先付","お造り","煮物","焼物","台の物",
   "揚物","蒸し物","酢の物","食事","止椀","香の物","水菓子"
 ];
@@ -905,7 +966,9 @@ function renderItems() {
         value="${isCustom && item.type !== '__custom__' ? item.type : ''}"
         placeholder="（最大3文字）" maxlength="3">
       <input class="name-input" type="text" data-i="${i}" data-field="name"
-        value="${item.name}" placeholder="品名（最大15文字）" maxlength="15">
+        value="${item.name}"
+        placeholder="${item.type === '記載なし' ? '品名（最大20文字）' : '品名（最大15文字）'}"
+        maxlength="${item.type === '記載なし' ? 20 : 15}">
       <button class="btn-remove" data-i="${i}">×</button>
     `;
     list.appendChild(row);
@@ -991,9 +1054,63 @@ document.getElementById('facility-name').addEventListener('input', e => {
   schedulePreviewUpdate();
 });
 
+// タイトルリアルタイム更新
+let obanshoTitle = '';
+document.getElementById('obansho-title').addEventListener('input', e => {
+  obanshoTitle = e.target.value;
+  schedulePreviewUpdate();
+});
+
+// ===== 施設印影アップロード =====
+let customStampSrc = '';
+
+function setSeasonBtnsDisabled(disabled) {
+  document.querySelectorAll('.season-btn').forEach(b => {
+    if (disabled) {
+      b.disabled = true;
+      b.style.opacity = '0.35';
+      b.style.cursor = 'not-allowed';
+    } else {
+      b.disabled = false;
+      b.style.opacity = '';
+      b.style.cursor = '';
+    }
+  });
+}
+
+document.getElementById('custom-stamp-upload').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    customStampSrc = ev.target.result;
+    document.getElementById('custom-stamp-img').src = customStampSrc;
+    document.getElementById('custom-stamp-preview').style.display = 'inline-block';
+    document.getElementById('btn-clear-stamp').style.display = 'inline-block';
+    // 季節ボタンをなしに戻してdisabled
+    selectedSeason = 'none';
+    document.querySelectorAll('.season-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.season-btn[data-season="none"]').classList.add('active');
+    setSeasonBtnsDisabled(true);
+    schedulePreviewUpdate();
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('btn-clear-stamp').addEventListener('click', () => {
+  customStampSrc = '';
+  document.getElementById('custom-stamp-img').src = '';
+  document.getElementById('custom-stamp-preview').style.display = 'none';
+  document.getElementById('btn-clear-stamp').style.display = 'none';
+  document.getElementById('custom-stamp-upload').value = '';
+  setSeasonBtnsDisabled(false);
+  schedulePreviewUpdate();
+});
+
 // ===== SEASON =====
 document.querySelectorAll('.season-btn').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (customStampSrc) return; // 施設印影アップロード中は無効
     selectedSeason = btn.dataset.season;
     document.querySelectorAll('.season-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -1025,9 +1142,17 @@ function generatePrintArea() {
   while (slots.length < 3) slots.push(null); // 空スロット補完
 
   const stampSrc = STAMPS[selectedSeason] || '';
-  const stampInner = stampSrc ? `<div class="season-stamp"><img src="${stampSrc}" alt="季節印"></div>` : '';
+  const stampInner = customStampSrc
+    ? `<div class="season-stamp"><img src="${customStampSrc}" alt="施設印影"></div>`
+    : stampSrc
+      ? `<div class="season-stamp"><img src="${stampSrc}" alt="季節印"></div>`
+      : '';
 
-  const itemsHTML = items.filter(it => it.name || it.type).map(it => {
+  const itemsHTML = items.filter(it => it.name || (it.type && it.type !== '記載なし')).map(it => {
+    if (it.type === '記載なし') {
+      // 種類なし：品名のみを先頭（上部）に表示
+      return `<div class="item-entry item-entry--no-type"><span class="item-name">${it.name}</span></div>`;
+    }
     const typeDisplay = normalizeType(it.type || '');
     return `<div class="item-entry"><span class="item-type">${typeDisplay}</span><span class="item-sep">　</span><span class="item-name">${it.name}</span></div>`;
   }).join('');
@@ -1042,9 +1167,10 @@ function generatePrintArea() {
       return;
     }
 
+    const titleText = obanshoTitle.trim() || 'お品書き';
     const titleColHTML = guestName
-      ? `<div class="title-col"><span class="title-text">お品書き</span><span class="title-guest">${guestName}</span></div>`
-      : `<div class="title-col"><span class="title-text">お品書き</span></div>`;
+      ? `<div class="title-col"><span class="title-text">${titleText}</span><span class="title-guest">${guestName}</span></div>`
+      : `<div class="title-col"><span class="title-text">${titleText}</span></div>`;
 
     cellsHTML += `
       <div class="obansho-cell">
@@ -1156,6 +1282,7 @@ function getCurrentState() {
 function getCurrentState() {
   return {
     facilityName,
+    obanshoTitle,
     season: selectedSeason,
     items:  JSON.parse(JSON.stringify(items)),
     guests: JSON.parse(JSON.stringify(guests))
@@ -1171,6 +1298,9 @@ function setLoadedId(id, name) {
 function applyState(state, id, name) {
   facilityName = state.facilityName || '';
   document.getElementById('facility-name').value = facilityName;
+
+  obanshoTitle = state.obanshoTitle || '';
+  document.getElementById('obansho-title').value = obanshoTitle;
 
   selectedSeason = state.season || 'none';
   document.querySelectorAll('.season-btn').forEach(b => {
